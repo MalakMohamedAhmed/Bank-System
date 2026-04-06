@@ -3,7 +3,7 @@ import pandas as pd
 import os
 from bank_system import User_account
 
-# ─── Page Config ────────────────────────────────────────────────────────────
+# ─── Page Config ──────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="NexaBank",
     page_icon="🏦",
@@ -11,11 +11,11 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ─── File Paths ──────────────────────────────────────────────────────────────
+# ─── File Paths ────────────────────────────────────────────────────────────
 FILE_PATH         = "bank_data.csv"
 TRANSACTIONS_FILE = "transactions.csv"
 
-# ─── Custom CSS ─────────────────────────────────────────────────────────────
+# ─── Custom CSS ───────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
