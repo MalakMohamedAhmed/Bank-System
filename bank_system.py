@@ -1,5 +1,5 @@
 class User_account:
-    def __init__(self, user_id, name, password, phone_number, balance):
+    def __init__(self, user_id, name, password, phone_number, balance, file_path):
         self.user_id = user_id
         self.name = name
         self.password = password
@@ -18,12 +18,10 @@ class User_account:
                 return
 
         new_row = [self.user_id, self.name, self.password, self.phone_number, self.balance]
+        data = pd.read_csv(file_path)
+        data.loc[len(data)] = new_row
+        data.to_csv(file_path, index=False)
         
-        with open(file_path, 'a', newline='') as f:
-            writer = csv.writer(f)
-            if os.stat(file_path).st_size == 0:
-                writer.writerow(['user_id', 'name', 'password', 'phone_number', 'balance'])
-            writer.writerow(new_row)
         print(f"Account for {self.name} saved to database.")
         
     def Delete_account(self, file_path):
@@ -56,7 +54,7 @@ class User_account:
         print(f"""User ID: {self.user_id} \n Username: {self.name} \n Password: {self.password} \n 
         Phone Number: {self.phone_number} \n Bank Balance: {self.balance}""")
 
-    def Deposite(self, amount, file_path):
+    def Deposite(self, amount, file_path, transaction_file):
         self.balance += amount
         self.transaction_history["Current Balance"].append(self.balance)
         self.transaction_history["Operation"].append("Deposit")
@@ -65,8 +63,12 @@ class User_account:
         data = pd.read_csv(file_path)
         data.loc[data['user_id'] == self.user_id, 'balance'] = self.balance
         data.to_csv(file_path, index=False)
+        
+        data = pd.read_csv(transaction_file)
+        data.loc[len(data)] = [self.user_id, self.name, self.balance, "+" + str(amount), "Deposite"]
+        data.to_csv(transaction_file, index=False)
 
-    def Withdraw(self, amount, file_path):
+    def Withdraw(self, amount, file_path, transaction_file):
         if amount > self.balance:
             print("Insufficient funds!")
             return
@@ -78,6 +80,10 @@ class User_account:
         data = pd.read_csv(file_path)
         data.loc[data['user_id'] == self.user_id, 'balance'] = self.balance
         data.to_csv(file_path, index=False)
+
+        data = pd.read_csv(transaction_file)
+        data.loc[len(data)] = [self.user_id, self.name, self.balance, "-" + str(amount), "Withdraw"]
+        data.to_csv(transaction_file, index=False)
 
     def Transaction_history(self):
         print(self.transaction_history)
