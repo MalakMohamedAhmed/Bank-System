@@ -1,7 +1,7 @@
 import streamlit as st
-import json
+import pandas as pd
 import os
-from datetime import datetime
+from bank_system import User_account
 
 # ─── Page Config ────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -10,6 +10,10 @@ st.set_page_config(
     layout="centered",
     initial_sidebar_state="collapsed",
 )
+
+# ─── File Paths ──────────────────────────────────────────────────────────────
+FILE_PATH         = "bank_data.csv"
+TRANSACTIONS_FILE = "transactions.csv"
 
 # ─── Custom CSS ─────────────────────────────────────────────────────────────
 st.markdown("""
@@ -27,19 +31,14 @@ st.markdown("""
     --red:    #c0392b;
     --green:  #27ae60;
 }
-
-/* ── Global ── */
 html, body, [class*="css"] {
     font-family: 'DM Sans', sans-serif;
     background-color: var(--cream);
     color: var(--navy);
 }
-
-/* ── Hide Streamlit chrome ── */
 #MainMenu, footer, header { visibility: hidden; }
 .block-container { padding-top: 2rem; padding-bottom: 3rem; max-width: 720px; }
 
-/* ── Hero Banner ── */
 .hero {
     background: linear-gradient(135deg, var(--navy) 0%, #1a2d4f 60%, #0f2240 100%);
     border-radius: 20px;
@@ -84,7 +83,6 @@ html, body, [class*="css"] {
 }
 .hero-tagline { color: rgba(255,255,255,0.6); font-size: 0.9rem; margin-top: 0.5rem; }
 
-/* ── Section Header ── */
 .section-title {
     font-family: 'Playfair Display', serif;
     font-size: 1.6rem;
@@ -97,18 +95,6 @@ html, body, [class*="css"] {
     border-radius: 2px;
     margin-bottom: 1.5rem;
 }
-
-/* ── Cards ── */
-.card {
-    background: var(--white);
-    border-radius: 16px;
-    padding: 2rem;
-    box-shadow: 0 4px 24px rgba(10,22,40,0.08);
-    border: 1px solid rgba(201,168,76,0.15);
-    margin-bottom: 1.5rem;
-}
-
-/* ── Info box ── */
 .info-box {
     background: linear-gradient(135deg, var(--navy), #1a2d4f);
     border-radius: 14px;
@@ -123,8 +109,6 @@ html, body, [class*="css"] {
     font-size: 2.2rem;
     color: var(--gold);
 }
-
-/* ── Alert Boxes ── */
 .alert-success {
     background: #eafaf1; border-left: 4px solid var(--green);
     padding: 1rem 1.2rem; border-radius: 8px;
@@ -140,15 +124,11 @@ html, body, [class*="css"] {
     padding: 1rem 1.2rem; border-radius: 8px;
     color: #1a5276; font-weight: 500; margin: 1rem 0;
 }
-
-/* ── Divider ── */
 .gold-divider {
     border: none;
     border-top: 1px solid rgba(201,168,76,0.3);
     margin: 1.5rem 0;
 }
-
-/* ── Buttons ── */
 .stButton > button {
     font-family: 'DM Sans', sans-serif !important;
     font-weight: 600 !important;
@@ -166,8 +146,6 @@ html, body, [class*="css"] {
     box-shadow: 0 6px 20px rgba(10,22,40,0.25) !important;
     transform: translateY(-1px) !important;
 }
-
-/* ── Inputs ── */
 .stTextInput > div > div > input,
 .stNumberInput > div > div > input,
 .stSelectbox > div > div {
@@ -180,8 +158,6 @@ html, body, [class*="css"] {
     border-color: var(--gold) !important;
     box-shadow: 0 0 0 3px rgba(201,168,76,0.15) !important;
 }
-
-/* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"] {
     background: var(--light);
     border-radius: 12px;
@@ -198,8 +174,6 @@ html, body, [class*="css"] {
     background: var(--navy) !important;
     color: var(--white) !important;
 }
-
-/* ── Transaction History ── */
 .txn-row {
     display: flex; justify-content: space-between; align-items: center;
     padding: 0.7rem 0;
@@ -207,38 +181,53 @@ html, body, [class*="css"] {
 }
 .txn-row:last-child { border-bottom: none; }
 .txn-type { font-weight: 500; color: var(--navy); }
-.txn-date { font-size: 0.8rem; color: var(--slate); }
 .txn-amount-pos { color: var(--green); font-weight: 600; }
 .txn-amount-neg { color: var(--red); font-weight: 600; }
 </style>
 """, unsafe_allow_html=True)
 
-# ─── Data Persistence ────────────────────────────────────────────────────────
-DATA_FILE = "bank_data.json"
+# ─── Helper Functions ────────────────────────────────────────────────────────
+def load_user_row(user_id: str):
+    """Fetch a single user's row from bank_data.csv."""
+    if not os.path.exists(FILE_PATH):
+        return None
+    data = pd.read_csv(FILE_PATH)
+    match = data[data['user_id'] == user_id]
+    return match.iloc[0] if not match.empty else None
 
-def load_data():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r") as f:
-            return json.load(f)
-    return {}
-
-def save_data(data):
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=2)
-
-def get_next_account_number(data):
-    if not data:
+def get_next_id() -> str:
+    """Generate the next sequential account number."""
+    if not os.path.exists(FILE_PATH):
         return "NX-100001"
-    nums = [int(k.split("-")[1]) for k in data.keys()]
-    return f"NX-{max(nums)+1}"
+    data = pd.read_csv(FILE_PATH)
+    if data.empty:
+        return "NX-100001"
+    nums = [int(str(uid).split("-")[1]) for uid in data['user_id'] if str(uid).startswith("NX-")]
+    return f"NX-{max(nums)+1}" if nums else "NX-100001"
+
+def restore_user(row) -> User_account:
+    """
+    Rebuild a User_account object from a CSV row
+    WITHOUT calling _add_to_csv again (bypasses __init__).
+    """
+    u = object.__new__(User_account)
+    u.user_id       = row['user_id']
+    u.name          = row['name']
+    u.password      = str(row['password'])
+    u.phone_number  = str(row['phone_number'])
+    u.balance       = float(row['balance'])
+    u.transaction_history = {
+        "Current Balance": [u.balance],
+        "Operation":       ["Session Start"],
+        "Amount":          ["—"]
+    }
+    return u
 
 # ─── Session State Init ──────────────────────────────────────────────────────
 if "page" not in st.session_state:
     st.session_state.page = "home"
-if "account_id" not in st.session_state:
-    st.session_state.account_id = None
-
-bank_data = load_data()
+if "user" not in st.session_state:
+    st.session_state.user = None   # holds the User_account object
 
 # ─── Hero ────────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -268,7 +257,7 @@ if st.session_state.page == "home":
             st.rerun()
 
 # ════════════════════════════════════════════════════════════════════════════
-#  CREATE ACCOUNT
+#  CREATE ACCOUNT  ── uses User_account.__init__ → _add_to_csv
 # ════════════════════════════════════════════════════════════════════════════
 elif st.session_state.page == "create_account":
     st.markdown('<div class="section-title">Open an Account</div><div class="gold-bar"></div>', unsafe_allow_html=True)
@@ -276,41 +265,31 @@ elif st.session_state.page == "create_account":
     with st.form("create_form"):
         col1, col2 = st.columns(2)
         with col1:
-            first = st.text_input("First Name")
-            email = st.text_input("Email Address")
-            pin   = st.text_input("Create PIN (4 digits)", type="password", max_chars=4)
+            name     = st.text_input("Full Name")
+            phone    = st.text_input("Phone Number")
         with col2:
-            last    = st.text_input("Last Name")
-            phone   = st.text_input("Phone Number")
-            deposit = st.number_input("Initial Deposit (EGP)", min_value=0.0, step=100.0, format="%.2f")
-
+            password = st.text_input("Password", type="password")
+            deposit  = st.number_input("Initial Deposit (EGP)", min_value=0.0, step=100.0, format="%.2f")
         submitted = st.form_submit_button("Create My Account", use_container_width=True)
 
     if submitted:
-        # Validation
-        if not all([first, last, email, phone, pin]):
+        if not all([name, phone, password]):
             st.markdown('<div class="alert-error">❌ Please fill in all fields.</div>', unsafe_allow_html=True)
-        elif not pin.isdigit() or len(pin) != 4:
-            st.markdown('<div class="alert-error">❌ PIN must be exactly 4 digits.</div>', unsafe_allow_html=True)
-        elif deposit < 0:
-            st.markdown('<div class="alert-error">❌ Initial deposit cannot be negative.</div>', unsafe_allow_html=True)
         else:
-            acc_id = get_next_account_number(bank_data)
-            bank_data[acc_id] = {
-                "first": first, "last": last,
-                "email": email, "phone": phone,
-                "pin": pin, "balance": deposit,
-                "created": datetime.now().strftime("%d %b %Y"),
-                "transactions": [
-                    {"type": "Initial Deposit", "amount": deposit,
-                     "date": datetime.now().strftime("%d %b %Y, %H:%M")}
-                ] if deposit > 0 else []
-            }
-            save_data(bank_data)
+            new_id = get_next_id()
+            # __init__ automatically calls _add_to_csv(FILE_PATH)
+            User_account(
+                user_id      = new_id,
+                name         = name,
+                password     = password,
+                phone_number = phone,
+                balance      = deposit,
+                file_path    = FILE_PATH
+            )
             st.markdown(f"""
             <div class="alert-success">
                 ✅ Account created successfully!<br>
-                Your Account Number is <strong>{acc_id}</strong> — please save it.
+                Your Account Number is <strong>{new_id}</strong> — please save it.
             </div>
             """, unsafe_allow_html=True)
 
@@ -326,18 +305,19 @@ elif st.session_state.page == "login":
     st.markdown('<div class="section-title">Sign In</div><div class="gold-bar"></div>', unsafe_allow_html=True)
 
     with st.form("login_form"):
-        acc_input = st.text_input("Account Number (e.g. NX-100001)")
-        pin_input = st.text_input("PIN", type="password", max_chars=4)
-        login_btn = st.form_submit_button("Sign In", use_container_width=True)
+        acc_input  = st.text_input("Account Number (e.g. NX-100001)")
+        pass_input = st.text_input("Password", type="password")
+        login_btn  = st.form_submit_button("Sign In", use_container_width=True)
 
     if login_btn:
-        acc_input = acc_input.strip().upper()
-        if acc_input not in bank_data:
+        row = load_user_row(acc_input.strip())
+        if row is None:
             st.markdown('<div class="alert-error">❌ Account not found.</div>', unsafe_allow_html=True)
-        elif bank_data[acc_input]["pin"] != pin_input:
-            st.markdown('<div class="alert-error">❌ Incorrect PIN.</div>', unsafe_allow_html=True)
+        elif str(row['password']) != pass_input:
+            st.markdown('<div class="alert-error">❌ Incorrect password.</div>', unsafe_allow_html=True)
         else:
-            st.session_state.account_id = acc_input
+            # Restore User_account object from CSV row
+            st.session_state.user = restore_user(row)
             st.session_state.page = "dashboard"
             st.rerun()
 
@@ -350,12 +330,19 @@ elif st.session_state.page == "login":
 #  DASHBOARD
 # ════════════════════════════════════════════════════════════════════════════
 elif st.session_state.page == "dashboard":
-    acc_id = st.session_state.account_id
-    if acc_id not in bank_data:
+    user: User_account = st.session_state.user
+
+    if user is None:
         st.session_state.page = "home"
         st.rerun()
 
-    acct = bank_data[acc_id]
+    # Always refresh balance/name/phone from CSV on every rerun
+    fresh = load_user_row(user.user_id)
+    if fresh is not None:
+        user.balance      = float(fresh['balance'])
+        user.name         = str(fresh['name'])
+        user.phone_number = str(fresh['phone_number'])
+        user.password     = str(fresh['password'])
 
     # ── Account Summary Card ──────────────────────────────────────────────
     st.markdown(f"""
@@ -363,125 +350,115 @@ elif st.session_state.page == "dashboard":
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
             <div>
                 <div class="label">Account Holder</div>
-                <div class="value" style="font-size:1.3rem;">{acct['first']} {acct['last']}</div>
-                <div style="color:rgba(255,255,255,0.5); font-size:0.82rem; margin-top:4px;">{acc_id} &nbsp;·&nbsp; Member since {acct['created']}</div>
+                <div class="value" style="font-size:1.3rem;">{user.name}</div>
+                <div style="color:rgba(255,255,255,0.5); font-size:0.82rem; margin-top:4px;">
+                    {user.user_id} &nbsp;·&nbsp; {user.phone_number}
+                </div>
             </div>
             <div style="text-align:right;">
                 <div class="label">Available Balance</div>
-                <div class="balance-amount">EGP {acct['balance']:,.2f}</div>
+                <div class="balance-amount">EGP {user.balance:,.2f}</div>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # ── Tabs ──────────────────────────────────────────────────────────────
     tabs = st.tabs(["💳 Deposit", "💸 Withdraw", "✏️ Update Info", "📋 History", "🗑️ Delete Account"])
 
-    # ── DEPOSIT ──────────────────────────────────────────────────────────
+    # ── DEPOSIT ── user.Deposite(amount, FILE_PATH, TRANSACTIONS_FILE) ────
     with tabs[0]:
         st.markdown("### Deposit Funds")
         with st.form("deposit_form"):
-            amount = st.number_input("Amount to Deposit (EGP)", min_value=0.01, step=100.0, format="%.2f")
+            amount  = st.number_input("Amount to Deposit (EGP)", min_value=0.01, step=100.0, format="%.2f")
             dep_btn = st.form_submit_button("Deposit", use_container_width=True)
         if dep_btn:
-            bank_data[acc_id]["balance"] += amount
-            bank_data[acc_id]["transactions"].append({
-                "type": "Deposit", "amount": amount,
-                "date": datetime.now().strftime("%d %b %Y, %H:%M")
-            })
-            save_data(bank_data)
-            st.markdown(f'<div class="alert-success">✅ EGP {amount:,.2f} deposited successfully. New balance: <strong>EGP {bank_data[acc_id]["balance"]:,.2f}</strong></div>', unsafe_allow_html=True)
+            user.Deposite(amount, FILE_PATH, TRANSACTIONS_FILE)
+            st.markdown(f'<div class="alert-success">✅ EGP {amount:,.2f} deposited. New balance: <strong>EGP {user.balance:,.2f}</strong></div>', unsafe_allow_html=True)
             st.rerun()
 
-    # ── WITHDRAW ─────────────────────────────────────────────────────────
+    # ── WITHDRAW ── user.Withdraw(amount, FILE_PATH, TRANSACTIONS_FILE) ───
     with tabs[1]:
         st.markdown("### Withdraw Funds")
         with st.form("withdraw_form"):
-            amount = st.number_input("Amount to Withdraw (EGP)", min_value=0.01, step=100.0, format="%.2f")
+            amount  = st.number_input("Amount to Withdraw (EGP)", min_value=0.01, step=100.0, format="%.2f")
             wit_btn = st.form_submit_button("Withdraw", use_container_width=True)
         if wit_btn:
-            if amount > bank_data[acc_id]["balance"]:
-                st.markdown(f'<div class="alert-error">❌ Insufficient balance. Available: EGP {bank_data[acc_id]["balance"]:,.2f}</div>', unsafe_allow_html=True)
+            if amount > user.balance:
+                st.markdown(f'<div class="alert-error">❌ Insufficient balance. Available: EGP {user.balance:,.2f}</div>', unsafe_allow_html=True)
             else:
-                bank_data[acc_id]["balance"] -= amount
-                bank_data[acc_id]["transactions"].append({
-                    "type": "Withdrawal", "amount": -amount,
-                    "date": datetime.now().strftime("%d %b %Y, %H:%M")
-                })
-                save_data(bank_data)
-                st.markdown(f'<div class="alert-success">✅ EGP {amount:,.2f} withdrawn. Remaining balance: <strong>EGP {bank_data[acc_id]["balance"]:,.2f}</strong></div>', unsafe_allow_html=True)
+                user.Withdraw(amount, FILE_PATH, TRANSACTIONS_FILE)
+                st.markdown(f'<div class="alert-success">✅ EGP {amount:,.2f} withdrawn. Remaining: <strong>EGP {user.balance:,.2f}</strong></div>', unsafe_allow_html=True)
                 st.rerun()
 
-    # ── UPDATE INFO ──────────────────────────────────────────────────────
+    # ── UPDATE INFO ── user.Update_username / Update_number / Update_password
     with tabs[2]:
         st.markdown("### Update Personal Information")
         with st.form("update_form"):
-            new_first = st.text_input("First Name", value=acct["first"])
-            new_last  = st.text_input("Last Name",  value=acct["last"])
-            new_email = st.text_input("Email",      value=acct["email"])
-            new_phone = st.text_input("Phone",      value=acct["phone"])
-            st.markdown("**Change PIN** *(leave blank to keep current)*")
-            new_pin   = st.text_input("New PIN (4 digits)", type="password", max_chars=4)
+            new_name  = st.text_input("Full Name",    value=user.name)
+            new_phone = st.text_input("Phone Number", value=user.phone_number)
+            new_pass  = st.text_input("New Password *(leave blank to keep current)*", type="password")
             upd_btn   = st.form_submit_button("Save Changes", use_container_width=True)
         if upd_btn:
-            if new_pin and (not new_pin.isdigit() or len(new_pin) != 4):
-                st.markdown('<div class="alert-error">❌ PIN must be exactly 4 digits.</div>', unsafe_allow_html=True)
-            else:
-                bank_data[acc_id]["first"] = new_first
-                bank_data[acc_id]["last"]  = new_last
-                bank_data[acc_id]["email"] = new_email
-                bank_data[acc_id]["phone"] = new_phone
-                if new_pin:
-                    bank_data[acc_id]["pin"] = new_pin
-                save_data(bank_data)
-                st.markdown('<div class="alert-success">✅ Your information has been updated.</div>', unsafe_allow_html=True)
-                st.rerun()
+            if new_name != user.name:
+                user.Update_username(new_name, FILE_PATH)
+            if new_phone != user.phone_number:
+                user.Update_number(new_phone, FILE_PATH)
+            if new_pass:
+                user.Update_password(new_pass, FILE_PATH)
+            st.markdown('<div class="alert-success">✅ Information updated successfully.</div>', unsafe_allow_html=True)
+            st.rerun()
 
-    # ── HISTORY ──────────────────────────────────────────────────────────
+    # ── HISTORY ── reads user.transaction_history + transactions.csv ──────
     with tabs[3]:
         st.markdown("### Transaction History")
-        txns = acct.get("transactions", [])
-        if not txns:
-            st.markdown('<div class="alert-info">ℹ️ No transactions recorded yet.</div>', unsafe_allow_html=True)
-        else:
-            for t in reversed(txns):
-                amt   = t["amount"]
-                color = "txn-amount-pos" if amt >= 0 else "txn-amount-neg"
-                sign  = "+" if amt >= 0 else ""
-                st.markdown(f"""
-                <div class="txn-row">
-                    <div>
-                        <div class="txn-type">{t['type']}</div>
-                        <div class="txn-date">{t['date']}</div>
-                    </div>
-                    <div class="{color}">{sign}EGP {abs(amt):,.2f}</div>
-                </div>
-                """, unsafe_allow_html=True)
 
-    # ── DELETE ACCOUNT ───────────────────────────────────────────────────
+        # Show full history from transactions.csv for this user
+        if os.path.exists(TRANSACTIONS_FILE):
+            txn_data = pd.read_csv(TRANSACTIONS_FILE)
+            user_txns = txn_data[txn_data['user_id'] == user.user_id]
+            if user_txns.empty:
+                st.markdown('<div class="alert-info">ℹ️ No transactions recorded yet.</div>', unsafe_allow_html=True)
+            else:
+                for _, row in user_txns.iloc[::-1].iterrows():
+                    amt    = str(row['amount'])
+                    is_pos = amt.startswith("+")
+                    color  = "txn-amount-pos" if is_pos else "txn-amount-neg"
+                    st.markdown(f"""
+                    <div class="txn-row">
+                        <div>
+                            <div class="txn-type">{row['operation']}</div>
+                        </div>
+                        <div style="text-align:right;">
+                            <div class="{color}">{amt} EGP</div>
+                            <div style="font-size:0.8rem;color:#4a5568;">Balance: EGP {float(row['balance']):,.2f}</div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="alert-info">ℹ️ No transactions recorded yet.</div>', unsafe_allow_html=True)
+
+    # ── DELETE ACCOUNT ── user.Delete_account(FILE_PATH) ─────────────────
     with tabs[4]:
         st.markdown("### Delete Account")
-        st.markdown('<div class="alert-error">⚠️ This action is permanent and cannot be undone. All your data and balance will be erased.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="alert-error">⚠️ This action is permanent and cannot be undone.</div>', unsafe_allow_html=True)
         with st.form("delete_form"):
-            confirm_pin = st.text_input("Enter your PIN to confirm", type="password", max_chars=4)
-            confirm_txt = st.text_input('Type "DELETE" to confirm')
-            del_btn     = st.form_submit_button("🗑️ Permanently Delete Account", use_container_width=True)
+            confirm_pass = st.text_input("Enter your password to confirm", type="password")
+            confirm_txt  = st.text_input('Type "DELETE" to confirm')
+            del_btn      = st.form_submit_button("🗑️ Permanently Delete Account", use_container_width=True)
         if del_btn:
-            if confirm_pin != bank_data[acc_id]["pin"]:
-                st.markdown('<div class="alert-error">❌ Incorrect PIN.</div>', unsafe_allow_html=True)
+            if confirm_pass != user.password:
+                st.markdown('<div class="alert-error">❌ Incorrect password.</div>', unsafe_allow_html=True)
             elif confirm_txt != "DELETE":
                 st.markdown('<div class="alert-error">❌ Please type DELETE to confirm.</div>', unsafe_allow_html=True)
             else:
-                del bank_data[acc_id]
-                save_data(bank_data)
-                st.session_state.account_id = None
+                user.Delete_account(FILE_PATH)
+                st.session_state.user = None
                 st.session_state.page = "home"
-                st.markdown('<div class="alert-success">Account deleted.</div>', unsafe_allow_html=True)
                 st.rerun()
 
     # ── Sign Out ──────────────────────────────────────────────────────────
     st.markdown('<hr class="gold-divider">', unsafe_allow_html=True)
     if st.button("🔓 Sign Out"):
-        st.session_state.account_id = None
+        st.session_state.user = None
         st.session_state.page = "home"
         st.rerun()
