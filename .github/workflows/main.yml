@@ -17,4 +17,4 @@ jobs:
       - name: Push to hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: git push https://MalakMohamed21:$HF_TOKEN@huggingface.co/spaces/MalakMohamed21/Bank_System main
+        run: git push --force https://MalakMohamed21:$HF_TOKEN@huggingface.co/spaces/MalakMohamed21/Bank_System main
