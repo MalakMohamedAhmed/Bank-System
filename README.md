@@ -3,11 +3,11 @@ title: Bank System
 emoji: 🚀
 colorFrom: red
 colorTo: red
-sdk: docker
+sdk: streamlit
 app_port: 8501
 tags:
   - streamlit
-app_file: app.py
+app_file: bank_app.py
 pinned: false
 short_description: Streamlit template space
 ---
