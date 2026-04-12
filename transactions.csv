@@ -2,4 +2,5 @@ user_id,name,balance,amount,operation
 NX-100001,Malak,5500.0,500.0,Deposit
 NX-100001,Malak,4500.0,-1000.0,Withdraw
 NX-100001,Malak,5000.0,500.0,Deposit
-NX-100001,Malak,10000.0,+5000.0,Deposit
+NX-100001,Malak,10000.0,5000.0,Deposit
+NX-100001,Malak,0.0,-10000.0,Withdraw
