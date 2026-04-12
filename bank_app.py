@@ -3,8 +3,7 @@ import pandas as pd
 import os
 from bank_system import User_account
 
-from git_sync import setup_git, pull
-setup_git()
+from git_sync import pull, push
 pull()
 
 # ─── Page Config ──────────────────────────────────────────────────────────
